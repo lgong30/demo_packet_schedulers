@@ -5,7 +5,10 @@
 #include <queue>
 
 /* default flow weight */
-const double DEF_FLOW_WEIGHT = 1.0
+const double DEF_FLOW_WEIGHT = 1.0;
+
+//! declaration for flow class
+class Flow;
 
 //! packet class
 class Packet{
@@ -62,7 +65,7 @@ public:
 	}
 	//! insert a packet
 	void AppendPacket(Packet *pkt){
-		packetQueue.push(pkt);
+		mPackets.push(pkt);
 		mLength += pkt->mLength;
 	}
 	//! remove the currently first packet (i.e., head of line packet)
@@ -86,4 +89,15 @@ public:
 	}
 };
 
+//! compare class based on packet's virtual finish time
+class PKT_Compare_VFT { // simple comparison function
+   public:
+      bool operator()(const Packet* p1,const Packet* p2) { return p1->mGPS_VFTime < p2->mGPS_VFTime; } 
+};
+
+//! compare class based on packet arrival time
+class PKT_Compare_AT { // simple comparison function
+   public:
+      bool operator()(const Packet* p1,const Packet* p2) { return p1->mArrivalTime < p2->mArrivalTime; } 
+};
 #endif

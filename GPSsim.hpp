@@ -3,19 +3,18 @@
 
 #include <math.h>       /* nearbyint */
 #include <vector>
+#include <fstream>
+#include <string>
 #include "demopacket.hpp"
 #include "priorityqueue.hpp"
 
-//! compare class
-class compare_vft { // simple comparison function
-   public:
-      bool operator()(const Packet* p1,const Packet* p2) { return p1->mGPS_VFTime > p2->mGPS_VFTime; } 
-};
 
 //! maximum number of flows
 const int MAX_FLOW_NUM = 100;
 //! default number of flows
 const int DEFAULT_FLOW_NUM = 5;
+
+//! class GPS simulator
 class GPSSim{
 	//! virtual time of last event
 	double mThenVTime;
@@ -36,6 +35,7 @@ class GPSSim{
 	//! number of flows
 	int mFlowNum;
 public:
+	//! constructor
 	GPSSim(int flowNum = DEFAULT_FLOW_NUM){
 		mThenVTime = 0.0;
 		mThenRTime = 0;
@@ -47,6 +47,7 @@ public:
 		mFlowNum = flowNum;
 		mpFlows = new Flow[mFlowNum];
 	}
+	//! constructor
 	GPSSim(std::vector<double> flowWeights)
 	{
 		mThenVTime = 0.0;
@@ -68,8 +69,10 @@ public:
 	void ResetTimer(long nowRTime,double nowVTime,double newWakeupVTime);
 	long GetNextWakeupRTime();
 	bool BindPacket2Flow(Packet *pPKT);
+	//void run(std::string input);
 	
 };
+//! function bind the packet to the corresponding flow
 bool GPSSim::BindPacket2Flow(Packet *pPKT)
 {
 	int flowId = pPKT->mFlowId;
@@ -146,7 +149,7 @@ void GPSSim::HandleNewPacketArrival(Packet *pPKT)
 	mThenRTime = nowRTime;
 
 }
-
+//! wakeup process
 void GPSSim::WakeupProcessing(long nowRTime)
 {
 	double nowVTime;
@@ -177,7 +180,7 @@ void GPSSim::WakeupProcessing(long nowRTime)
 	}
 }
 
-
+//! function to reset timer
 void GPSSim::ResetTimer(long int nowRTime,double nowVTime,double newWakeupVTime)
 {
 	int newInterval;
@@ -185,6 +188,7 @@ void GPSSim::ResetTimer(long int nowRTime,double nowVTime,double newWakeupVTime)
 	mNextWakeupRTime = nowRTime + newInterval;
 }
 
+//! function to get next wakeup time
 long GPSSim::GetNextWakeupRTime()
 {
 	return mNextWakeupRTime;
