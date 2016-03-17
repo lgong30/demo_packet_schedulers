@@ -62,7 +62,7 @@ class MinHeap{
 	bool IsMinHeap()
 	{
 		if (Empty()) return true;
-		for (int i = 0;2 * i <= mSize;++ i)
+		for (int i = 1;2 * i <= mSize;++ i)
 			{
 				if (mGreater(mpElements[i],mpElements[2 * i])) return false;
 				if (2 * i + 1 <= mSize && mGreater(mpElements[i],mpElements[2 * i + 1])) return false;

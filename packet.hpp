@@ -55,6 +55,8 @@ public:
 	int mLength;
 	//! packets in this flow
 	std::queue<Packet *> mPackets;
+	//! record the virtual finish time of the last packet in this flow
+	double mLastPacketVFTime;
 	//! constructor
 	Flow(double weight = DEF_FLOW_WEIGHT)
 	{
@@ -62,11 +64,13 @@ public:
 			throw new std::runtime_error("Cannot create flow with negative or zero weight.");
 		mWeight = weight;
 		mLength = 0;
+		mLastPacketVFTime = 0.0;
 	}
 	//! insert a packet
 	void AppendPacket(Packet *pkt){
 		mPackets.push(pkt);
 		mLength += pkt->mLength;
+		mLastPacketVFTime = pkt->mGPS_VFTime;
 	}
 	//! remove the currently first packet (i.e., head of line packet)
 	void PopHOL()
@@ -85,18 +89,23 @@ public:
 	//! get the status of this flow
 	bool IsBackloggedUnderGPS()
 	{
-		return mPackets.empty();
+		return !mPackets.empty();
+	}
+	//! get the virtual finish time of last packet in this flow
+	double GetLastPacketVFTime()
+	{
+		return mLastPacketVFTime;
 	}
 };
 
 //! compare class based on packet's virtual finish time
-class PKT_Compare_VFT { // simple comparison function
+class PKT_Compare_VFT_G { // simple comparison function
    public:
-      bool operator()(const Packet* p1,const Packet* p2) { return p1->mGPS_VFTime < p2->mGPS_VFTime; } 
+      bool operator()(const Packet* p1,const Packet* p2) { return p1->mGPS_VFTime > p2->mGPS_VFTime; } 
 };
 
 //! compare class based on packet arrival time
-class PKT_Compare_AT { // simple comparison function
+class PKT_Compare_AT_L { // simple comparison function
    public:
       bool operator()(const Packet* p1,const Packet* p2) { return p1->mArrivalTime < p2->mArrivalTime; } 
 };

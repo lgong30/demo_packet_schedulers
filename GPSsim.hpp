@@ -5,8 +5,9 @@
 #include <vector>
 #include <fstream>
 #include <string>
-#include "demopacket.hpp"
-#include "priorityqueue.hpp"
+#include <algorithm> // for max
+#include "packet.hpp"
+#include "priorityQueue.hpp"
 
 
 //! maximum number of flows
@@ -25,13 +26,13 @@ class GPSSim{
 	//! is the system idle currently
 	bool mIdling;
 	//! priority queue of head of line packets
-	PriorityQueue<Packet *,compare_vft> *mpPQ_HOL;
+	PriorityQueue<Packet *,PKT_Compare_VFT_G> *mpPQ_HOL;
 	//! the packet served currently
 	Packet *mpCurPacket;
 	//! real time for next wakeup
 	long int mNextWakeupRTime;
 	//! flows
-	Flow* mpFlows;
+	std::vector<Flow*> mpFlows;
 	//! number of flows
 	int mFlowNum;
 public:
@@ -41,11 +42,12 @@ public:
 		mThenRTime = 0;
 		mSumWeight = 0.0;
 		mIdling = true;
-		mpPQ_HOL = new PriorityQueue<Packet *>();
+		mpPQ_HOL = new PriorityQueue<Packet *,PKT_Compare_VFT_G>();
 		mpCurPacket = NULL;
 		mNextWakeupRTime = 0;
 		mFlowNum = flowNum;
-		mpFlows = new Flow[mFlowNum];
+		for (int i = 0;i < flowNum;++ i)
+			mpFlows.push_back(new Flow());
 	}
 	//! constructor
 	GPSSim(std::vector<double> flowWeights)
@@ -54,14 +56,13 @@ public:
 		mThenRTime = 0;
 		mSumWeight = 0.0;
 		mIdling = true;
-		mpPQ_HOL = new PriorityQueue<Packet *>();
+		mpPQ_HOL = new PriorityQueue<Packet *,PKT_Compare_VFT_G>();
 		mpCurPacket = NULL;
 		mNextWakeupRTime = 0;
 		mFlowNum = flowWeights.size();
-		mpFlows = new Flow[mFlowNum];
 
 		for (int i = 0;i < mFlowNum;++ i)
-			mpFlows[i] = new Flow(flowWeights[i]);		
+			mpFlows.push_back(new Flow(flowWeights[i]));		
 	}
 
 	void HandleNewPacketArrival(Packet *pPKT);
@@ -69,16 +70,16 @@ public:
 	void ResetTimer(long nowRTime,double nowVTime,double newWakeupVTime);
 	long GetNextWakeupRTime();
 	bool BindPacket2Flow(Packet *pPKT);
-	//void run(std::string input);
+	void CleanUpAfterBusyPeriod();
 	
 };
 //! function bind the packet to the corresponding flow
 bool GPSSim::BindPacket2Flow(Packet *pPKT)
 {
-	int flowId = pPKT->mFlowId;
+	int flowId = pPKT->mFlowId - 1;
 	if (flowId >= 0 && flowId < mFlowNum)
 	{
-		pPKT->SetFlow(&mpFlows[flowId]);
+		pPKT->SetFlow(mpFlows[flowId]);
 		return true;
 	}
 	return false;
@@ -94,7 +95,7 @@ void GPSSim::HandleNewPacketArrival(Packet *pPKT)
 	Flow *pFlow;
 	//! packet pointer points to the packet which is enjoying the service
 	Packet *pCurPacket;
-    //! get current real 
+    //! get current real time
 	nowRTime = pPKT->mArrivalTime;
 
 	//! check whether is system is idle or not
@@ -116,7 +117,7 @@ void GPSSim::HandleNewPacketArrival(Packet *pPKT)
 	//! get the flow to which the newly arrived packet belongs
 	pFlow = pPKT->mpFlow;
 	//! get the flow's backlog status
-	b = pFlow->IsBackloggedUnderGPS();
+	bool b = pFlow->IsBackloggedUnderGPS();
 
 	if (!b)
 	{
@@ -125,7 +126,7 @@ void GPSSim::HandleNewPacketArrival(Packet *pPKT)
 	}
 
 	//! calculate the GPS virtual finish time for the newly arrived packet
-	pPKT->GPS_VFTime = nowVTime + pPKT->mLength / pFlow->mWeight;
+	pPKT->mGPS_VFTime = std::max(nowVTime,pFlow->GetLastPacketVFTime()) + pPKT->mLength / pFlow->mWeight;
 	//! append the packet into the corresponding flow
 	pFlow->AppendPacket(pPKT);
 
@@ -134,7 +135,7 @@ void GPSSim::HandleNewPacketArrival(Packet *pPKT)
 		//! put the newly arrived packet into the priority queue of the head of line packet
 		mpPQ_HOL->Enqueue(pPKT);
 		//! get the packet with minimum GPS finish time
-		pCurPacket = mpPQ_HOL->Peek_Min();
+		pCurPacket = mpPQ_HOL->PeekMin();
 		//! check whether it is the same as the current packet
 		if (pCurPacket != mpCurPacket)
 		{
@@ -144,7 +145,7 @@ void GPSSim::HandleNewPacketArrival(Packet *pPKT)
 		ResetTimer(nowRTime,nowVTime,mpCurPacket->mGPS_VFTime);
 	}
 	//! update the virtual time of last event
-	mThenRTime = nowVTime;
+	mThenVTime = nowVTime;
 	//! update the real time of last event
 	mThenRTime = nowRTime;
 
@@ -153,7 +154,7 @@ void GPSSim::HandleNewPacketArrival(Packet *pPKT)
 void GPSSim::WakeupProcessing(long nowRTime)
 {
 	double nowVTime;
-	flow *pFlow;
+	Flow *pFlow;
 	Packet *pPKT;
 	nowVTime = mpCurPacket->mGPS_VFTime;
 	mpPQ_HOL->PopMin();
@@ -169,7 +170,7 @@ void GPSSim::WakeupProcessing(long nowRTime)
 	{
 		mSumWeight -= pFlow->mWeight;
 	}
-	mpCurPacket = mpPQ_HOL->Peek_Min();
+	mpCurPacket = mpPQ_HOL->PeekMin();
 	if (mpCurPacket == NULL)
 	{
 		CleanUpAfterBusyPeriod();
@@ -192,6 +193,15 @@ void GPSSim::ResetTimer(long int nowRTime,double nowVTime,double newWakeupVTime)
 long GPSSim::GetNextWakeupRTime()
 {
 	return mNextWakeupRTime;
+}
+
+//! function to cleanup
+void GPSSim::CleanUpAfterBusyPeriod()
+{
+	mThenVTime = 0;
+	mNextWakeupRTime = 0;
+	mIdling = true;
+	mSumWeight = 0.0;
 }
 
 

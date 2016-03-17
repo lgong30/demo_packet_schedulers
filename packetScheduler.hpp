@@ -4,17 +4,31 @@
 #include <stdexcept> // for runtime_error
 #include <fstream>
 #include <vector>
-#include <algorithm> // for sort
 #include <string> // for string & getline
 
-#include "packet.hpp"
+//#include "packet.hpp"
+#include "GPSsim.hpp" // for Packet, Flow, GPSSim 
+#include "json.hpp"
 
+using json = nlohmann::json;
 //! packet scheduler class
 class PacketScheduler{
-    //GPSSim *GPSSim;
+    GPSSim *GPSsimulator;
     //! vector for Packets
     std::vector<Packet *> mPackets;
     std::vector<double> mFlowWeights;
+    json Packet2JSON(int i)
+    {
+       assert(i >=0 && i < mPackets.size());
+       json j = {
+        {"flowId",mPackets[i]->mFlowId},
+        {"packetId",mPackets[i]->mPacketId},
+        {"arrivalTime",mPackets[i]->mArrivalTime},
+        {"packetLength",mPackets[i]->mLength},
+        {"virtualFinishTime",mPackets[i]->mGPS_VFTime}
+       };
+       return j;
+    }
 public:
     //! constructor
     PacketScheduler(std::string input){
@@ -131,9 +145,16 @@ public:
         }
         
         infile.close();
-        PKT_Compare_AT pc;
+        PKT_Compare_AT_L pc;
         std::sort(mPackets.begin(),mPackets.end(),pc);
+
+        if (isEqualWeight)
+            GPSsimulator = new GPSSim(flowNum);
+        else
+            GPSsimulator = new GPSSim(mFlowWeights);
+
     }
+    //! function to show all flows and packets
     void print()
     {
         std::cout << "===================================================================\n";
@@ -161,6 +182,54 @@ public:
                       << ", packet length: " << pkt->mLength
                       << std::endl;
         std::cout << "===================================================================\n";
+    }
+    void run()
+    {
+        int curPacketIndex = 0;// index of current packet
+        Packet *pCurPacket = NULL;// pointer to current packet
+        long int nextWakeupRTime;// recorder of next wakeup time
+
+        //! repeat until there are not packets
+        while (curPacketIndex < mPackets.size())
+        {
+            //! get next wakeup time
+            nextWakeupRTime = GPSsimulator->GetNextWakeupRTime();
+            //! get current packet pointer
+            pCurPacket = mPackets[curPacketIndex];
+            //! handle packets which should depart before current packet arrives
+            while ( nextWakeupRTime > 0 && nextWakeupRTime <= pCurPacket->mArrivalTime)
+            {
+                GPSsimulator->WakeupProcessing(nextWakeupRTime);
+                nextWakeupRTime = GPSsimulator->GetNextWakeupRTime();
+            }
+            //! handle this packet
+            GPSsimulator->HandleNewPacketArrival(pCurPacket);
+            ++ curPacketIndex;
+        }
+        save2JSON();
+    }
+    void save2JSON()
+    {
+        json jDesp;
+        json jFlow(mFlowWeights);
+        jDesp["flow_weights"].push_back(jFlow);
+        for (int i = 0;i < mPackets.size();++ i)
+        {
+            json jPacket = Packet2JSON(i);
+            jDesp["packets"].push_back({jPacket});
+        }
+        std::string jString = jDesp.dump();
+        std::cout << "\n\n";
+        std::cout << "===================================================================\n";
+        std::cout << "          Simulation results under GPS Simulator                   \n";
+        std::cout << "===================================================================\n";
+        std::cout << jString << std::endl;
+        std::cout << "===================================================================\n";
+        std::cout << "\n\n";
+        std::cout << "Saving results to JSON file ...\n";
+        std::ofstream ofs("gps_output.json", std::ofstream::out);
+        ofs << jString << std::endl;
+        std::cout << "Simulation finished!\n";
     }
 };
 
