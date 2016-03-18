@@ -15,6 +15,7 @@ const int MAX_FLOW_NUM = 100;
 //! default number of flows
 const int DEFAULT_FLOW_NUM = 5;
 
+
 //! class GPS simulator
 class GPSSim{
 	//! virtual time of last event
