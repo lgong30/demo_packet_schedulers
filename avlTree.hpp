@@ -45,6 +45,9 @@ public:
 		//! update height
 		current->height = std::max(height(current->left),height(current->right)) + 1;
 
+#ifdef AUGMENTED_L_GPS
+		updateAugmentedMembers(current);
+#endif
 		//! check whether rotation is needed
 		int balance = heightDif(current);
 
@@ -84,10 +87,25 @@ public:
 		right->left = current;
 
 		current->height = std::max(height(current->left),height(current->right)) + 1;
-		right->height = std::max(height(right->left),height(right->right)) + 1s;
+		right->height = std::max(height(right->left),height(right->right)) + 1;
 
+#ifdef AUGMENTED_L_GPS
+
+		updateAugmentedMembers(current);
+		updateAugmentedMembers(right);
+
+#endif
 		return right;
 	}
+#ifdef AUGMENTED_L_GPS
+	inline void updateAugmentedMembers(node<T>* current)
+	{
+
+		current->data.mVTimeMax = current->right->data.mVTimeMax;
+		current->data.mDeltaWeight = current->left->data.mDeltaWeight + current->right->data.mDeltaWeight;
+		current->data.mDeltaRTime = current->left->data.mDeltaRTime + current->right->data.mDeltaRTime - (current->right->data.mVTimeMax - current->left->data.mVTimeMax) * current->left->data.mDeltaWeight;
+	}
+#endif
 	//! A function to perform right rotate at current node
 	node<T>* right_rotate(node<T>* current)
 	{
@@ -97,6 +115,11 @@ public:
 
 		current->height = std::max(height(current->left),height(current->right)) + 1;
 		left->height = std::max(height(left->left),height(left->right)) + 1;
+
+#ifdef AUGMENTED_L_GPS
+		updateAugmentedMembers(current);
+		updateAugmentedMembers(left);
+#endif 
 	}
 	int height()
 	{
@@ -144,6 +167,13 @@ public:
 		current->height = std::max(height(current->left),height(current->right)) + 1;
 
 		int balance = heightDif(current);
+
+#ifdef AUGMENTED_L_GPS
+
+		updateAugmentedMembers(current);
+		updateAugmentedMembers(right);
+
+#endif
 
 		if (balance > 1)
 		{// left-heavy
